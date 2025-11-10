@@ -1,0 +1,14 @@
+{
+  "name": "drawsito-ws-relay",
+  "version": "1.0.0",
+  "description": "Relay WebSocket para Drawsito usando LISTEN/NOTIFY de PostgreSQL",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "pg": "^8.12.0",
+    "ws": "^8.18.0"
+  }
+}
