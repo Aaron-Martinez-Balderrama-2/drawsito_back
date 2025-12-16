@@ -5,7 +5,6 @@ session_start();
 
 require_once __DIR__.'/config.php';
 if (PERSISTENCIA === 'pg') require_once __DIR__.'/db.php';
-
 $accion = $_GET['accion'] ?? $_POST['accion'] ?? '';
 
 if ($accion === 'token'){
@@ -19,17 +18,26 @@ if ($accion === 'guardar' && $_SERVER['REQUEST_METHOD']==='POST'){
     http_response_code(403); echo json_encode(['ok'=>false,'msg'=>'CSRF inválido']); exit;
   }
   $json = $_POST['json'] ?? '';
-  if ($json==='' || strlen($json)>2_000_000){ http_response_code(400); echo json_encode(['ok'=>false,'msg'=>'JSON vacío o grande']); exit; }
+  if ($json==='' || strlen($json)>2_000_000){ http_response_code(400); echo json_encode(['ok'=>false,'msg'=>'JSON vacío o grande']); exit;
+  }
   json_decode($json); if (json_last_error()!==JSON_ERROR_NONE){ http_response_code(400); echo json_encode(['ok'=>false,'msg'=>'JSON inválido']); exit; }
 
-  $id = 'dibujo-'.date('Ymd-His');
+  // Modificacion 15/12/25 v0.0.2 lo hice por que recupero el ID enviado por el front para saber si es edicion
+  $id_in = preg_replace('~[^a-zA-Z0-9\-_]~','', $_POST['id'] ?? ''); 
+  // Modificacion 15/12/25 v0.0.2 lo hice por que si viene ID lo uso, si no genero uno nuevo basado en fecha
+  $id = ($id_in !== '') ? $id_in : 'dibujo-'.date('Ymd-His'); 
+
   if (PERSISTENCIA==='pg'){
     $pdo = db_pg();
-    $stmt=$pdo->prepare('INSERT INTO diagramas(id, owner_id, titulo, json) VALUES(:id, :owner, :tit, :j::jsonb)');
+    // Modificacion 15/12/25 v0.0.2 lo hice por que cambie INSERT por UPSERT (ON CONFLICT) para actualizar si ya existe
+    $sql = 'INSERT INTO diagramas(id, owner_id, titulo, json, actualizado_at) VALUES(:id, :owner, :tit, :j::jsonb, now()) ON CONFLICT (id) DO UPDATE SET json = EXCLUDED.json, actualizado_at = now()';
+    $stmt=$pdo->prepare($sql);
     $owner = $_SESSION['user_id'] ?? null;
     $stmt->execute([':id'=>$id, ':owner'=>$owner, ':tit'=>$id, ':j'=>$json]);
   } else {
-    $dir = __DIR__.'/diagramas'; if (!is_dir($dir)) @mkdir($dir,0755,true);
+    $dir = __DIR__.'/diagramas';
+    if (!is_dir($dir)) @mkdir($dir,0755,true);
+    // Modificacion 15/12/25 v0.0.2 lo hice por que file_put_contents sobrescribe por defecto, funcionando como update
     file_put_contents($dir.'/'.$id.'.json',$json);
   }
   echo json_encode(['ok'=>true,'id'=>$id]); exit;
@@ -45,7 +53,8 @@ if ($accion === 'cargar'){
     $s=$pdo->prepare('SELECT json FROM diagramas WHERE id=:id');
     $s->execute([':id'=>$id]);
     $row=$s->fetch(PDO::FETCH_NUM);
-    if (!$row){ http_response_code(404); echo json_encode(['ok'=>false,'msg'=>'No existe']); exit; }
+    if (!$row){ http_response_code(404); echo json_encode(['ok'=>false,'msg'=>'No existe']); exit;
+    }
     echo $row[0]; // JSON puro
     exit;
   } else {

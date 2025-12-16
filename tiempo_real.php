@@ -1,5 +1,5 @@
 <?php
-// Drawsito v1.1.2 — Colaboración: PG rooms + ops + presencia + NOTIFY
+
 @ini_set('display_errors','0');
 header('Content-Type: application/json; charset=utf-8');
 
@@ -9,13 +9,21 @@ if (PERSISTENCIA === 'pg') require_once __DIR__.'/db.php';
 $accion = $_GET['accion'] ?? $_POST['accion'] ?? '';
 function out($x){ echo json_encode($x, JSON_UNESCAPED_UNICODE); exit; }
 
-// ——— knobs de rendimiento ———
-const POLL_TIMEOUT_SEC = 25;     // long-poll máximo
-const POLL_TICK_US     = 100000; // 100ms entre chequeos
 
-// ——— aplicar operación pura sobre el documento ———
+const POLL_TIMEOUT_SEC = 0;     
+const POLL_TICK_US     = 100000; 
+
+
 function aplicarOp(&$doc, $op){
   $t = $op['type'] ?? '';
+  
+  if ($t === 'load_full') {
+      $doc['nodos']   = $op['nodos']   ?? [];
+      $doc['aristas'] = $op['aristas'] ?? [];
+      
+      $doc['locks']   = []; 
+      return;
+  }
   if ($t==='add_node'){ $doc['nodos'][]=$op['node']; return; }
   if ($t==='move_node' || $t==='resize_node' || $t==='set_title'){
     foreach($doc['nodos'] as &$n){
@@ -130,7 +138,7 @@ if ($accion==='op'){
   $doc = $row ? (is_array($row['doc']) ? $row['doc'] : json_decode($row['doc'],true)) : ['nodos'=>[],'aristas'=>[],'locks'=>[]];
   $ver = $row ? (int)$row['version'] : 0;
 
-  // bloqueo suave para texto
+  
   $t=$op['type']??'';
   if (in_array($t,['set_title','set_attr','set_method'],true)){
     $idNodo=$op['id']??null;
@@ -142,15 +150,15 @@ if ($accion==='op'){
     if ($hay && $until>$now && $by!==$client){ $pdo->rollBack(); out(['ok'=>false,'reason'=>'locked']); }
   }
 
-  // aplicar mutación pura
+  
   aplicarOp($doc,$op);
 
-  // persistir doc + version
+  
   $u=$pdo->prepare('UPDATE rooms SET doc=:d::jsonb, version=version+1, actualizado_at=now() WHERE room=:r RETURNING version');
   $u->execute([':d'=>json_encode($doc,JSON_UNESCAPED_UNICODE), ':r'=>$room]);
   $nver=(int)$u->fetchColumn();
 
-  // registrar op
+  
   $pdo->prepare('INSERT INTO room_ops(room,ver,op,ts_ms,user_id) VALUES(:r,:v,:o::jsonb,:t,:u)')
       ->execute([':r'=>$room, ':v'=>$nver, ':o'=>json_encode($op,JSON_UNESCAPED_UNICODE), ':t'=>(int)(microtime(true)*1000), ':u'=>$uid]);
 
@@ -160,15 +168,15 @@ if ($accion==='op'){
         ->execute([':r'=>$room, ':u'=>$uid]);
   }
 
-  // ——— NUEVO: NOTIFICAR por PG (LISTEN/NOTIFY) ———
-  // Enviamos un payload compacto con la sala, la versión confirmada y la op.
+  
+  
   $payload = json_encode([
     'room' => $room,
     'ver'  => $nver,
     'op'   => $op
   ], JSON_UNESCAPED_UNICODE);
 
-  // NOTA: el nombre del canal va literal (no parametrizable); el payload sí.
+  
   $pdo->query("SELECT pg_notify('rooms', " . $pdo->quote($payload) . ")");
 
   $pdo->commit();
