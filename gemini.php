@@ -3,11 +3,15 @@
 header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json");
 
-// ==========================================
-// CONFIGURACIÓN
-// ==========================================
-$API_KEY = "AIzaSyAZgfe1VMfiPyfYgytXoPa5qVU-0JUMHtM"; // <--- ¡Coloca tu API Key real aquí!
-// ==========================================
+// Importamos la configuración segura
+require_once __DIR__.'/config.php';
+
+$API_KEY = obtenerApiKey(); // <--- ¡Magia! Ya no hay llave visible aquí
+
+if (!$API_KEY) {
+    echo json_encode(["error" => "Error interno: Falta API KEY en el servidor."]);
+    exit;
+}
 
 // 1. Recibir datos
 $inputJSON = file_get_contents('php://input');
