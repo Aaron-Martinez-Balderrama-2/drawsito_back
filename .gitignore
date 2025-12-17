@@ -1,0 +1,5 @@
+.env
+diagramas/
+*.zip
+debug_gemini_error.txt
+node_modules/
