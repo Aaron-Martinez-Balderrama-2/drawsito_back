@@ -1,9 +1,10 @@
 <?php
-// Drawsito v1.1.0 — API guardar/cargar + token
+// drawsito_back/api.php
 @ini_set('display_errors','0');
-session_start();
 
+// IMPORTANTE: Quitamos session_start() de aquí porque ya está en config.php
 require_once __DIR__.'/config.php';
+
 if (PERSISTENCIA === 'pg') require_once __DIR__.'/db.php';
 $accion = $_GET['accion'] ?? $_POST['accion'] ?? '';
 
