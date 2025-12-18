@@ -2,7 +2,7 @@
 // drawsito_back/api.php
 @ini_set('display_errors','0');
 
-// IMPORTANTE: Quitamos session_start() de aquí porque ya está en config.php
+// PRIMERO cargamos config (que inicia sesión correctamente)
 require_once __DIR__.'/config.php';
 
 if (PERSISTENCIA === 'pg') require_once __DIR__.'/db.php';
